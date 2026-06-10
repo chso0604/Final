@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스크린 집중도 인터랙티브 그래프</title>
+<script src="./vendor/chart.umd.min.js"></script>
+<script src="./js_data/monthly_diversity_indices.js"></script>
+<script src="./js_data/monthly_movie_indices.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: transparent;
+    color: #1e293b;
+    font-family: "Inter", "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  }
+  .screen-viz {
+    width: 100%;
+    max-width: 760px;
+    margin: 24px auto;
+    color: #1e293b;
+  }
+  .viz-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 0 0 10px;
+  }
+  .viz-tab {
+    flex: 1 0 auto;
+    border: 1px solid #dbe3ef;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 750;
+    line-height: 1;
+    padding: 9px 12px;
+    transition: background .16s ease, border-color .16s ease, color .16s ease;
+    white-space: nowrap;
+  }
+  .viz-tab:hover { background: #f1f5f9; }
+  .viz-tab.active {
+    background: #0f172a;
+    border-color: #0f172a;
+    color: #fff;
+  }
+  .viz-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, .06);
+    overflow: hidden;
+  }
+  .viz-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px 10px;
+  }
+  .viz-kicker {
+    color: #ea580c;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: .02em;
+    margin-bottom: 4px;
+  }
+  .viz-title {
+    color: #0f172a;
+    font-size: 16px;
+    font-weight: 850;
+    line-height: 1.35;
+    margin: 0;
+  }
+  .viz-sub {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.55;
+    margin-top: 5px;
+  }
+  .viz-pill {
+    align-items: center;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 999px;
+    color: #c2410c;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 850;
+    gap: 5px;
+    padding: 6px 9px;
+  }
+  .viz-pill::before {
+    background: #f97316;
+    border-radius: 50%;
+    content: "";
+    display: inline-block;
+    height: 7px;
+    width: 7px;
+  }
+  .viz-body { padding: 4px 16px 16px; }
+  .chart-box {
+    position: relative;
+    height: 340px;
+    width: 100%;
+  }
+  .chart-box.short { height: 320px; }
+  .caption {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    color: #334155;
+    font-size: 12px;
+    line-height: 1.7;
+    margin-top: 12px;
+    padding: 11px 13px;
+  }
+  .caption b { color: #0f172a; }
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeIn .18s ease-out; }
+  .top5-controls {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin: 0 0 8px;
+  }
+  .top5-controls label {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .top5-controls select {
+    appearance: none;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    color: #0f172a;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 28px 7px 10px;
+  }
+  .mini-table {
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-top: 12px;
+    width: 100%;
+  }
+  .mini-table th,
+  .mini-table td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 7px 6px;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .mini-table th {
+    color: #64748b;
+    font-weight: 800;
+  }
+  .mini-table th:nth-child(2),
+  .mini-table td:nth-child(2) {
+    max-width: 260px;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (max-width: 560px) {
+    .screen-viz { margin: 18px auto; }
+    .viz-tabs { padding-left: 2px; padding-right: 2px; }
+    .viz-tab { flex: 0 0 auto; }
+    .viz-head { display: block; padding: 15px 14px 8px; }
+    .viz-pill { margin-top: 9px; }
+    .viz-body { padding: 4px 12px 14px; }
+    .chart-box, .chart-box.short { height: 330px; }
+    .mini-table th:nth-child(4),
+    .mini-table td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="screen-viz" id="screenViz">
+  <div class="viz-tabs" aria-label="시각화 선택">
+    <button class="viz-tab active" type="button" data-panel="hhi">HHI</button>
+    <button class="viz-tab" type="button" data-panel="cr3">CR3</button>
+    <button class="viz-tab" type="button" data-panel="top5">Top5 스크린 점유율</button>
+  </div>
+
+  <section class="panel active" id="hhi">
+    <article class="viz-card">
+      <div class="viz-head">
+        <div>
+          <div class="viz-kicker">CONCENTRATION INDEX</div>
+          <h2 class="viz-title">3월, 스크린 집중도는 가장 높고 선택 다양성은 가장 낮았다</h2>
+          <p class="viz-sub">막대는 HHI, 선은 유효 영화수입니다. 한 지표가 오르고 다른 지표가 내려갈수록 시장 쏠림이 커집니다.</p>
+        </div>
+        <span class="viz-pill">3월 강조</span>
+      </div>
+      <div class="viz-body">
+        <div class="chart-box"><canvas id="hhiChart"></canvas></div>
+        <p class="caption"><b>HHI</b>는 영화별 스크린 점유율의 제곱합입니다. 값이 높을수록 소수 영화에 스크린이 몰렸다는 뜻입니다.</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="panel" id="cr3">
+    <article class="viz-card">
+      <div class="viz-head">
+        <div>
+          <div class="viz-kicker">TOP 3 SHARE</div>
+          <h2 class="viz-title">상위 3편의 스크린 점유율도 3월에 정점을 찍었다</h2>
+          <p class="viz-sub">CR3는 상위 3편의 합산 점유율이라 기사 독자가 가장 직관적으로 읽을 수 있는 집중도 지표입니다.</p>
+        </div>
+        <span class="viz-pill">3월 강조</span>
+      </div>
+      <div class="viz-body">
+        <div class="chart-box short"><canvas id="cr3Chart"></canvas></div>
+        <p class="caption"><b>CR3</b>는 월별 스크린 점유율 상위 3개 영화의 합계입니다. 3월에는 상위 3편이 전체 스크린의 65.7%를 차지했습니다.</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="panel" id="top5">
+    <article class="viz-card">
+      <div class="viz-head">
+        <div>
+          <div class="viz-kicker">MONTHLY TOP 5</div>
+          <h2 class="viz-title">월별 상위 5편이 스크린을 얼마나 가져갔나</h2>
+          <p class="viz-sub">가로 막대는 영화명과 순위를 함께 읽기 쉬워, 월별 Top5 비교에 가장 적합합니다.</p>
+        </div>
+      </div>
+      <div class="viz-body">
+        <div class="top5-controls">
+          <label for="monthSelect">월 선택</label>
+          <select id="monthSelect"></select>
+        </div>
+        <div class="chart-box"><canvas id="top5Chart"></canvas></div>
+        <table class="mini-table">
+          <thead>
+            <tr>
+              <th>순위</th>
+              <th>영화</th>
+              <th>스크린</th>
+              <th>관객</th>
+            </tr>
+          </thead>
+          <tbody id="top5Table"></tbody>
+        </table>
+        <p class="caption" id="top5Caption"></p>
+      </div>
+    </article>
+  </section>
+</div>
+
+<script>
+const charts = {};
+const highlightMonth = "2026-03";
+const months = monthlyDiversityIndices
+  .map(d => d.month)
+  .filter(month => month >= "2026-01" && month <= "2026-05")
+  .sort();
+
+const css = getComputedStyle(document.documentElement);
+const palette = {
+  slate900: "#0f172a",
+  slate700: "#334155",
+  slate500: "#64748b",
+  slate300: "#cbd5e1",
+  slate200: "#e2e8f0",
+  orange: "#ea580c",
+  orangeSoft: "rgba(234, 88, 12, .22)",
+  emerald: "#10b981",
+  blue: "#2563eb",
+  blueSoft: "rgba(37, 99, 235, .13)",
+  rose: "#e11d48"
+};
+
+const monthLabel = month => `${Number(month.slice(5, 7))}월`;
+const fmt = (n, digits = 1) => Number(n || 0).toLocaleString("ko-KR", { maximumFractionDigits: digits });
+const pct = n => `${fmt(n, 1)}%`;
+
+Chart.defaults.font.family = '"Inter", "Segoe UI", "Malgun Gothic", system-ui, sans-serif';
+Chart.defaults.color = palette.slate500;
+
+function destroyChart(id) {
+  if (charts[id]) {
+    charts[id].destroy();
+    delete charts[id];
+  }
+}
+
+function makeChart(id, config) {
+  destroyChart(id);
+  charts[id] = new Chart(document.getElementById(id), config);
+}
+
+function diversityRows() {
+  return months.map(month => monthlyDiversityIndices.find(d => d.month === month));
+}
+
+function movieRows(month) {
+  return monthlyMovieIndices
+    .filter(d => d.month === month)
+    .sort((a, b) => Number(b.SS_screen_share_pct || 0) - Number(a.SS_screen_share_pct || 0));
+}
+
+function shortMovie(name, len = 11) {
+  return name.length > len ? `${name.slice(0, len)}...` : name;
+}
+
+function commonGrid() {
+  return {
+    color: palette.slate200,
+    borderDash: [3, 3],
+    drawBorder: false
+  };
+}
+
+function renderHhi() {
+  const rows = diversityRows();
+  const labels = rows.map(d => monthLabel(d.month));
+  makeChart("hhiChart", {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          type: "bar",
+          label: "HHI",
+          data: rows.map(d => d.HHI_screen_10000),
+          backgroundColor: rows.map(d => d.month === highlightMonth ? palette.orange : palette.slate300),
+          borderColor: rows.map(d => d.month === highlightMonth ? "#f97316" : palette.slate300),
+          borderWidth: rows.map(d => d.month === highlightMonth ? 1.5 : 0),
+          borderRadius: 6,
+          yAxisID: "y",
+          order: 2
+        },
+        {
+          type: "line",
+          label: "유효 영화수",
+          data: rows.map(d => d.effective_movie_count),
+          borderColor: palette.emerald,
+          backgroundColor: "white",
+          borderWidth: 3,
+          pointBackgroundColor: "white",
+          pointBorderColor: palette.emerald,
+          pointBorderWidth: 2.5,
+          pointRadius: rows.map(d => d.month === highlightMonth ? 6 : 4),
+          tension: .35,
+          yAxisID: "y1",
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          align: "end",
+          labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, font: { size: 11, weight: "700" } }
+        },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, .92)",
+          padding: 10,
+          callbacks: {
+            afterTitle: items => rows[items[0].dataIndex].month === highlightMonth ? "3월 집중도 최고점" : "",
+            label: ctx => ctx.dataset.yAxisID === "y1"
+              ? `유효 영화수: ${fmt(ctx.raw, 2)}개`
+              : `HHI: ${fmt(ctx.raw, 0)}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11, weight: "700" } } },
+        y: {
+          beginAtZero: true,
+          suggestedMax: 2200,
+          title: { display: true, text: "HHI", color: palette.slate500, font: { size: 11, weight: "800" } },
+          grid: commonGrid(),
+          ticks: { callback: v => fmt(v, 0), font: { size: 10 } }
+        },
+        y1: {
+          beginAtZero: true,
+          suggestedMax: 10,
+          position: "right",
+          title: { display: true, text: "유효 영화수", color: palette.emerald, font: { size: 11, weight: "800" } },
+          grid: { drawOnChartArea: false },
+          ticks: { callback: v => `${v}개`, color: palette.emerald, font: { size: 10 } }
+        }
+      }
+    }
+  });
+}
+
+function renderCr3() {
+  const rows = diversityRows();
+  const maxIdx = rows.reduce((best, row, idx) => row.CR3_screen_pct > rows[best].CR3_screen_pct ? idx : best, 0);
+  makeChart("cr3Chart", {
+    type: "line",
+    data: {
+      labels: rows.map(d => monthLabel(d.month)),
+      datasets: [
+        {
+          label: "CR3",
+          data: rows.map(d => d.CR3_screen_pct),
+          borderColor: palette.blue,
+          backgroundColor: palette.blueSoft,
+          borderWidth: 3,
+          fill: true,
+          tension: .38,
+          pointRadius: rows.map((d, i) => i === maxIdx ? 7 : 4),
+          pointHoverRadius: 8,
+          pointBackgroundColor: rows.map((d, i) => i === maxIdx ? palette.orange : "white"),
+          pointBorderColor: rows.map((d, i) => i === maxIdx ? palette.orange : palette.blue),
+          pointBorderWidth: 2.5
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, .92)",
+          padding: 10,
+          callbacks: {
+            afterTitle: items => rows[items[0].dataIndex].month === highlightMonth ? "3월 최고치" : "",
+            label: ctx => `상위 3편 점유율: ${pct(ctx.raw)}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11, weight: "700" } } },
+        y: {
+          beginAtZero: true,
+          suggestedMax: 75,
+          grid: commonGrid(),
+          ticks: { callback: v => `${v}%`, font: { size: 10 } },
+          title: { display: true, text: "상위 3편 스크린 점유율", color: palette.slate500, font: { size: 11, weight: "800" } }
+        }
+      }
+    }
+  });
+}
+
+function renderMonthSelect() {
+  const select = document.getElementById("monthSelect");
+  select.innerHTML = months
+    .map(month => `<option value="${month}" ${month === highlightMonth ? "selected" : ""}>${monthLabel(month)}</option>`)
+    .join("");
+  select.addEventListener("change", renderTop5);
+}
+
+function renderTop5() {
+  const month = document.getElementById("monthSelect").value;
+  const rows = movieRows(month).slice(0, 5);
+  const top5Total = rows.reduce((sum, d) => sum + Number(d.SS_screen_share_pct || 0), 0);
+  makeChart("top5Chart", {
+    type: "bar",
+    data: {
+      labels: rows.map(d => shortMovie(d.movieNm)),
+      datasets: [
+        {
+          label: "스크린 점유율",
+          data: rows.map(d => d.SS_screen_share_pct),
+          backgroundColor: rows.map((d, i) => i === 0 ? palette.rose : palette.slate300),
+          borderRadius: 7,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, .92)",
+          padding: 10,
+          callbacks: {
+            title: items => rows[items[0].dataIndex].movieNm,
+            label: ctx => `스크린 점유율: ${pct(ctx.raw)}`,
+            afterLabel: ctx => `관객 점유율: ${pct(rows[ctx.dataIndex].audience_share_pct)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          suggestedMax: Math.max(45, rows[0].SS_screen_share_pct + 5),
+          grid: commonGrid(),
+          ticks: { callback: v => `${v}%`, font: { size: 10 } }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: palette.slate700, font: { size: 11, weight: "750" } }
+        }
+      }
+    }
+  });
+
+  document.getElementById("top5Table").innerHTML = rows.map((d, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td title="${d.movieNm}">${d.movieNm}</td>
+      <td>${pct(d.SS_screen_share_pct)}</td>
+      <td>${pct(d.audience_share_pct)}</td>
+    </tr>
+  `).join("");
+
+  document.getElementById("top5Caption").innerHTML =
+    `<b>${monthLabel(month)} Top5 합계</b>는 ${pct(top5Total)}입니다. 1위 <b>${rows[0].movieNm}</b>의 스크린 점유율은 ${pct(rows[0].SS_screen_share_pct)}입니다.`;
+}
+
+function bindTabs() {
+  document.querySelectorAll(".viz-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      const panelId = tab.dataset.panel;
+      document.querySelectorAll(".viz-tab").forEach(item => item.classList.toggle("active", item === tab));
+      document.querySelectorAll(".panel").forEach(panel => panel.classList.toggle("active", panel.id === panelId));
+      if (panelId === "hhi" && charts.hhiChart) charts.hhiChart.resize();
+      if (panelId === "cr3" && charts.cr3Chart) charts.cr3Chart.resize();
+      if (panelId === "top5" && charts.top5Chart) charts.top5Chart.resize();
+    });
+  });
+}
+
+bindTabs();
+renderMonthSelect();
+renderHhi();
+renderCr3();
+renderTop5();
+</script>
+</body>
+</html>
